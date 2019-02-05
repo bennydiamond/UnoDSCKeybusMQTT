@@ -129,26 +129,44 @@
 #include <PubSubClient.h>
 #include <dscKeybusInterface.h>
 
-#define UARTBAUD                (115200)
+#define UARTBAUD                    (115200)
 
 // MQTT Properties
-IPAddress const MQTTBrokerIP    (192, 168, 1, 254);
-#define MQTTBrokerPort          (1883)
-#define MQTTBrokerUser          "" // Username this device should connect with
-#define MQTTBrokerPass          "" // Password this device should connect with    
-#define MQTTClientName          "alarmsys"
-#define MQTTPartitionTopic      "alarmsys/get/partition"  // Sends armed and alarm status per partition: alarmsys/get/Partition1 ... alarmsys/get/Partition8
-#define MQTTZoneTopic           "alarmsys/get/zone"            // Sends zone status per zone: alarmsys/get/Zone1 ... alarmsys/get/Zone64
-#define MQTTFireTopic           "alarmsys/get/fire"            // Sends fire status per partition: alarmsys/get/Fire1 ... alarmsys/get/Fire8
-#define MQTTTroubleTopic        "alarmsys/get/trouble"      // Sends trouble status
-#define MQTTSubscribeTopic      "alarmsys/set"            // Receives messages to write to the panel
-#define MQTTPubAvailable        "alarmsys/get/available"
-#define MQTTWillQos             (0)
-#define MQTTWillRetain          (0)
-#define MQTTAvailablePayload    "online"
-#define MQTTUnavailablePayload  "offline"
-#define MQTTNotRetain           (false)
-#define MQTTRetain              (true)
+IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
+#define MQTTBrokerPort              (1883)
+#define MQTTBrokerUser              "" // Username this device should connect with
+#define MQTTBrokerPass              "" // Password this device should connect with    
+#define MQTTClientName              "alarmsys"
+#define MQTTTopicPrefix             MQTTClientName
+#define MQTTTopicGet                "/get"
+#define MQTTTopicSet                "/set"
+#define MQTTPartitionTopic          MQTTTopicPrefix MQTTTopicGet "/partition"  // Sends armed and alarm status per partition: alarmsys/get/Partition1 ... alarmsys/get/Partition8
+#define MQTTZoneTopic               MQTTTopicPrefix MQTTTopicGet "/zone"       // Sends zone status per zone: alarmsys/get/Zone1 ... alarmsys/get/Zone64
+#define MQTTFireTopic               MQTTTopicPrefix MQTTTopicGet "/fire"       // Sends fire status per partition: alarmsys/get/Fire1 ... alarmsys/get/Fire8
+#define MQTTTroubleTopic            MQTTTopicPrefix MQTTTopicGet "/trouble"    // Sends trouble status
+#define MQTTSubscribeTopic          MQTTTopicPrefix MQTTTopicSet               // Receives messages to write to the panel
+#define MQTTPubAvailable            MQTTTopicPrefix MQTTTopicGet "/available"
+#define MQTTSubPayloadArmSuffix     ('A')
+#define MQTTSubPayloadDisarmSuffix  ('D')
+#define MQTTSubPayloadArmStaySuffix ('S')
+#define MQTTSubPayloadSilenceSuffix ('T')
+#define MQTTPubPayloadArm           "armed_away"
+#define MQTTPubPayloadDisarm        "disarmed"
+#define MQTTPubPayloadArmStay       "armed_home"
+#define MQTTPubPayloadPending       "pending"
+#define MQTTPubPayloadAlarmTrigger  "triggered"
+#define MQTTPubPayloadZoneTrigger   "1"
+#define MQTTPubPayloadZoneIdle      "0"
+#define MQTTPubPayloadFireTrigger   "1"
+#define MQTTPubPayloadFireIdle      "0"
+#define MQTTPubPayloadTroubleActive "1"
+#define MQTTPubPayloadTroubleIdle   "0"
+#define MQTTWillQos                 (0)
+#define MQTTWillRetain              (0)
+#define MQTTAvailablePayload        "online"
+#define MQTTUnavailablePayload      "offline"
+#define MQTTNotRetain               (false)
+#define MQTTRetain                  (true)
 #define ConnectBrokerRetryInterval_ms (2000)
 #define PublishAvailableInterval_ms   (30000)
 
@@ -159,6 +177,7 @@ IPAddress const MQTTBrokerIP    (192, 168, 1, 254);
 #define dscReadPin  (3)  // Arduino Uno: 2-12
 #define dscWritePin (4)  // Arduino Uno: 2-12
 #define accessCode  ""   // An access code is required to disarm/night arm and may be required to arm based on panel configuration.
+#define DefaultPartitionId (1)
 
 
 // Network properties
@@ -175,7 +194,7 @@ dscKeybusInterface dsc(dscClockPin, dscReadPin, dscWritePin);
 // Function prototypes
 void mqttCallback (char* topic, byte* payload, unsigned int length);
 void mqttHandle (void);
-static void publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
+static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
 static void advanceTimers (void);
 
 // Static variables
@@ -231,14 +250,20 @@ void loop (void)
 
     if(dsc.troubleChanged) 
     {
-      dsc.troubleChanged = false;  // Resets the trouble status flag
+      bool messageSent = false;
+
       if(dsc.trouble) 
       {
-        publishMQTTMessage(MQTTTroubleTopic, "1", true);
+        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleActive, true);
       }
       else 
       {
-        publishMQTTMessage(MQTTTroubleTopic, "0", true);
+        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleIdle, true);
+      }
+      
+      if(messageSent)
+      {
+        dsc.troubleChanged = false;  // Resets the trouble status flag
       }
     }
     // Publishes status per partition
@@ -247,91 +272,111 @@ void loop (void)
       // Publishes exit delay status
       if(dsc.exitDelayChanged[partition]) 
       {
-        dsc.exitDelayChanged[partition] = false;  // Resets the exit delay status flag
-
         // Appends the mqttPartitionTopic with the partition number
-        char publishTopic[strlen(MQTTPartitionTopic) + 1];
+        char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
         char partitionNumber[2];
         strcpy(publishTopic, MQTTPartitionTopic);
-        itoa(partition + 1, partitionNumber, 10);
+        partitionNumber[1] = 0;
+        partitionNumber[0] = partition + '1';
         strcat(publishTopic, partitionNumber);
 
+        bool messageSent = false;
+      
         if(dsc.exitDelay[partition]) 
         {
-          publishMQTTMessage(publishTopic, "pending", true);  // Publish as a retained message
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, true);  // Publish as a retained message
         }
         else if((false == dsc.exitDelay[partition]) && (false == dsc.armed[partition])) 
         {
-          publishMQTTMessage(publishTopic, "disarmed", true);
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, true);
+        }
+
+        if(messageSent)
+        {
+          dsc.exitDelayChanged[partition] = false;  // Resets the exit delay status flag
         }
       }
 
       // Publishes armed/disarmed status
       if(dsc.armedChanged[partition]) 
       {
-        dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
-
         // Appends the mqttPartitionTopic with the partition number
-        char publishTopic[strlen(MQTTPartitionTopic) + 1];
+        char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
         char partitionNumber[2];
         strcpy(publishTopic, MQTTPartitionTopic);
-        itoa(partition + 1, partitionNumber, 10);
+        partitionNumber[1] = 0;
+        partitionNumber[0] = partition + '1';
         strcat(publishTopic, partitionNumber);
+
+        bool messageSent = false;
 
         if(dsc.armed[partition]) 
         {
           if(dsc.armedAway[partition]) 
           {
-            publishMQTTMessage(publishTopic, "armed_away", true);
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArm, true);
           }
           else if(dsc.armedStay[partition]) 
           {
-            publishMQTTMessage(publishTopic, "armed_home", true);
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, true);
           }
         }
         else 
         {
-          publishMQTTMessage(publishTopic, "disarmed", true);
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, true);
+        }
+
+        if(messageSent)
+        {
+          dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
         }
       }
 
       // Publishes alarm status
       if(dsc.alarmChanged[partition]) 
       {
+        // TODO: Figure out what to do here to ensure MQTT message has been sent
         dsc.alarmChanged[partition] = false;  // Resets the partition alarm status flag
-        if (dsc.alarm[partition]) 
+        if(dsc.alarm[partition]) 
         {
 
           // Appends the mqttPartitionTopic with the partition number
-          char publishTopic[strlen(MQTTPartitionTopic) + 1];
+          char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
           char partitionNumber[2];
           strcpy(publishTopic, MQTTPartitionTopic);
-          itoa(partition + 1, partitionNumber, 10);
+          partitionNumber[1] = 0;
+          partitionNumber[0] = partition + '1';
           strcat(publishTopic, partitionNumber);
 
-          publishMQTTMessage(publishTopic, "triggered", true);  // Alarm tripped
+          publishMQTTMessage(publishTopic, MQTTPubPayloadAlarmTrigger, true);  // Alarm tripped
         }
       }
 
       // Publishes fire alarm status
       if(dsc.fireChanged[partition]) 
       {
-        dsc.fireChanged[partition] = false;  // Resets the fire status flag
-
         // Appends the mqttFireTopic with the partition number
-        char firePublishTopic[strlen(MQTTFireTopic) + 1];
+        char firePublishTopic[strlen(MQTTFireTopic) + sizeof(char)];
         char partitionNumber[2];
         strcpy(firePublishTopic, MQTTFireTopic);
-        itoa(partition + 1, partitionNumber, 10);
+        partitionNumber[1] = 0;
+        partitionNumber[0] = partition + '1';
         strcat(firePublishTopic, partitionNumber);
+
+        bool messageSent = false;
 
         if(dsc.fire[partition]) 
         {
-          publishMQTTMessage(firePublishTopic, "1", false);  // Fire alarm tripped
+          publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireTrigger, false);  // Fire alarm tripped
         }
         else 
         {
-          publishMQTTMessage(firePublishTopic, "0", false);  // Fire alarm restored
+          publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireIdle, false);  // Fire alarm restored
+        }
+
+        if(messageSent)
+        {
+          dsc.fireChanged[partition] = false;  // Resets the fire status flag
         }
       }
     }
@@ -347,26 +392,39 @@ void loop (void)
       dsc.openZonesStatusChanged = false;                           // Resets the open zones status flag
       for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
       {
-        for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
+        for(byte zoneBit = 0; zoneBit < dscKeybusInterface::ZoneGroupSize; zoneBit++) 
         {
           if(bitRead(dsc.openZonesChanged[zoneGroup], zoneBit))   // Checks an individual open zone status flag
           {
-            bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 0);  // Resets the individual open zone status flag
-
             // Appends the mqttZoneTopic with the zone number
-            char zonePublishTopic[strlen(MQTTZoneTopic) + 2];
-            char zone[3];
+            char zonePublishTopic[strlen(MQTTZoneTopic) + (2 * sizeof(char))];
             strcpy(zonePublishTopic, MQTTZoneTopic);
-            itoa(zoneBit + 1 + (zoneGroup * 8), zone, 10);
+            char * zone = zonePublishTopic + strlen(zonePublishTopic);
+            byte const currentZone = zoneBit + 1 + (zoneGroup * dscKeybusInterface::ZoneGroupSize);
+            // Works because a maximum of 64 zones is supported. 
+            if(currentZone / 10)
+            {
+              *zone++ = (currentZone / 10) + '0';
+            }
+            *zone++ = (currentZone % 10) + '0';
+            *zone = '\0';
+
             strcat(zonePublishTopic, zone);
+
+            bool messageSent = false;
 
             if(bitRead(dsc.openZones[zoneGroup], zoneBit)) 
             {
-              publishMQTTMessage(zonePublishTopic, "1", true); // Zone open
+              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneTrigger, true); // Zone open
             }
             else 
             {
-              publishMQTTMessage(zonePublishTopic, "0", true); // Zone closed
+              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneIdle, true); // Zone closed
+            }
+
+            if(messageSent)
+            {
+              bitClear(dsc.openZonesChanged[zoneGroup], zoneBit);  // Resets the individual open zone status flag
             }
           }
         }
@@ -396,50 +454,62 @@ void mqttCallback (char* topic, byte* payload, unsigned int length)
   Serial.println(szTemp);
 
 
-  byte partition = 0;
+  byte partition = DefaultPartitionId;
   byte payloadIndex = 0;
 
   // Checks if a partition number 1-8 has been sent and sets the second character as the payload
   if(('1' <= payload[0]) && ('8' >= payload[0])) 
   {
-    partition = payload[0] - '1';
+    partition = payload[0] - '0';
     payloadIndex = 1;
   }
 
   // Arm stay
-  if(('S' == payload[payloadIndex]) && (false == dsc.armed[partition]) && (false == dsc.exitDelay[partition])) 
+  if((MQTTSubPayloadArmStaySuffix == payload[payloadIndex]) && (false == dsc.armed[partition]) && (false == dsc.exitDelay[partition])) 
   {
     while(false == dsc.writeReady) 
     {
       dsc.handlePanel();  // Continues processing Keybus data until ready to write
     }
 
-    dsc.writePartition = partition + 1;         // Sets writes to the partition number
+    dsc.writePartition = partition;         // Sets writes to the partition number
     dsc.write('s');                             // Virtual keypad arm stay
   }
 
   // Arm away
-  else if(('A' == payload[payloadIndex]) && (false == dsc.armed[partition]) && (false == dsc.exitDelay[partition])) 
+  else if((MQTTSubPayloadArmSuffix == payload[payloadIndex]) && (false == dsc.armed[partition]) && (false == dsc.exitDelay[partition])) 
   {
     while(false == dsc.writeReady) 
     {
       dsc.handlePanel();  // Continues processing Keybus data until ready to write
     }
 
-    dsc.writePartition = partition + 1;         // Sets writes to the partition number
+    dsc.writePartition = partition;         // Sets writes to the partition number
     dsc.write('w');                             // Virtual keypad arm away
   }
 
   // Disarm
-  else if(('D' == payload[payloadIndex]) && (dsc.armed[partition] || dsc.exitDelay[partition])) 
+  else if((MQTTSubPayloadDisarmSuffix == payload[payloadIndex]) && (dsc.armed[partition] || dsc.exitDelay[partition])) 
   {
     while(false == dsc.writeReady) 
     {
       dsc.handlePanel();  // Continues processing Keybus data until ready to write
     }
     
-    dsc.writePartition = partition + 1;         // Sets writes to the partition number
+    dsc.writePartition = partition;         // Sets writes to the partition number
     dsc.write(accessCode);
+  }
+
+  // Silence trouble
+  else if((MQTTSubPayloadSilenceSuffix == payload[payloadIndex]) && (false == dsc.armed[partition]) && (false == dsc.exitDelay[partition])) 
+  {
+    while(false == dsc.writeReady) 
+    {
+      dsc.handlePanel();  // Continues processing Keybus data until ready to write
+    }
+    
+    dsc.writePartition = partition;         // Sets writes to the partition number
+    dsc.write('#');
   }
 }
 
@@ -472,16 +542,15 @@ void mqttHandle (void)
 
       publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTNotRetain);  
     }
-
-    mqtt.loop();
   }
+  mqtt.loop();
 }
 
 // Publish MQTT data to MQTT broker
-static void publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain)
+static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain)
 {
   // Define and send message about door state
-  mqtt.publish(sMQTTSubscription, sMQTTData, retain); 
+  bool result = mqtt.publish(sMQTTSubscription, sMQTTData, retain); 
 
   // Debug info
   Serial.print(F("MQTT Out : "));
@@ -489,6 +558,7 @@ static void publishMQTTMessage (char const * const sMQTTSubscription, char const
   Serial.print(F(" "));
   Serial.println(sMQTTData);
 
+  return result;
 }
 
 static void advanceTimers (void)

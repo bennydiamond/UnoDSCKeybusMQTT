@@ -31,12 +31,13 @@ const byte dscZones = 8;
 const byte dscBufferSize = 50;
 #endif
 
-const byte dscReadSize = 16;   // Maximum size of a Keybus command
 
 
 class dscKeybusInterface {
 
   public:
+    static const byte dscReadSize = 16;   // Maximum size of a Keybus command
+    static const byte ZoneGroupSize = 8;  // Number of zones in a group
 
     // Initializes writes as disabled by default
     dscKeybusInterface(byte setClockPin, byte setReadPin, byte setWritePin = 255);
