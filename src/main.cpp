@@ -169,6 +169,7 @@ IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
 #define MQTTRetain                  (true)
 #define ConnectBrokerRetryInterval_ms (2000)
 #define PublishAvailableInterval_ms   (30000)
+#define PublishAlarmSysInterval_ms    (13000)
 
 
 // Configures the Keybus interface with the specified pins - dscWritePin is optional, leaving it out disables the
@@ -196,9 +197,11 @@ void mqttCallback (char* topic, byte* payload, unsigned int length);
 void mqttHandle (void);
 static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
 static void advanceTimers (void);
+static void refreshAlarmSysStatus (void);
 
 // Static variables
 static uint32_t mqttActionTimer;
+static uint32_t alarmSysPubTimer;
 static unsigned long previous;
 
 void setup (void) 
@@ -219,6 +222,7 @@ void setup (void)
   dsc.begin();
 
   mqttActionTimer = 0;
+  alarmSysPubTimer = 2;
   previous = 0;
   Serial.println(F("Setup Complete."));
 }
@@ -433,6 +437,12 @@ void loop (void)
   }
 
   advanceTimers();
+
+  if(0 == alarmSysPubTimer)
+  {
+    refreshAlarmSysStatus();
+    alarmSysPubTimer = PublishAlarmSysInterval_ms;
+  }
 }
 
 
@@ -572,5 +582,34 @@ static void advanceTimers (void)
     {
       mqttActionTimer--;
     }
+
+    if(alarmSysPubTimer)
+    {
+      alarmSysPubTimer--;
+    }
   }
+}
+
+static void refreshAlarmSysStatus (void)
+{
+  dsc.statusChanged = true;
+  dsc.troubleChanged = true;
+
+  for(byte partition = 0; partition < dscPartitions; partition++) 
+  {
+    dsc.exitDelayChanged[partition] = true;
+    dsc.armedChanged[partition] = true;
+    dsc.alarmChanged[partition] = true;
+    dsc.fireChanged[partition] = true;
+  }
+#if 0
+  dsc.openZonesStatusChanged = true;
+  for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
+  {
+    for(byte zoneBit = 0; zoneBit < dscKeybusInterface::ZoneGroupSize; zoneBit++) 
+    {
+      bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, true);
+    }
+  }
+#endif
 }
