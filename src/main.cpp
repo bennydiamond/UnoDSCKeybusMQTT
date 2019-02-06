@@ -125,6 +125,7 @@
  *  Issues and (especially) pull requests are welcome:
  *  https://github.com/taligentx/dscKeybusInterface
  */
+#include "secret.h"
 #include <UIPEthernet.h>
 #include <PubSubClient.h>
 #include <dscKeybusInterface.h>
@@ -134,8 +135,8 @@
 // MQTT Properties
 IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
 #define MQTTBrokerPort              (1883)
-#define MQTTBrokerUser              "" // Username this device should connect with
-#define MQTTBrokerPass              "" // Password this device should connect with    
+#define MQTTBrokerUser              SecretMQTTUsername // Username this device should connect with. Define string in secret.h
+#define MQTTBrokerPass              SecretMQTTPassword // Password this device should connect with. Define string in secret.h
 #define MQTTClientName              "alarmsys"
 #define MQTTTopicPrefix             MQTTClientName
 #define MQTTTopicGet                "/get"
@@ -177,7 +178,7 @@ IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
 #define dscClockPin (2)  // Arduino Uno hardware interrupt pin: 2,3
 #define dscReadPin  (3)  // Arduino Uno: 2-12
 #define dscWritePin (4)  // Arduino Uno: 2-12
-#define accessCode  ""   // An access code is required to disarm/night arm and may be required to arm based on panel configuration.
+#define accessCode  SecretDscAccessCode   // An access code is required to disarm/night arm and may be required to arm based on panel configuration. Define string in secret.h
 #define DefaultPartitionId (1)
 
 
@@ -597,7 +598,6 @@ static void refreshAlarmSysStatus (void)
 
   for(byte partition = 0; partition < dscPartitions; partition++) 
   {
-    dsc.exitDelayChanged[partition] = true;
     dsc.armedChanged[partition] = true;
     dsc.alarmChanged[partition] = true;
     dsc.fireChanged[partition] = true;
