@@ -2,7 +2,7 @@
 #define UIPETHERNET_CONF_H
 
 /* for TCP */
-#define UIP_SOCKET_NUMPACKETS    4
+#define UIP_SOCKET_NUMPACKETS    5
 #define UIP_CONF_MAX_CONNECTIONS 3
 
 /* for UDP
