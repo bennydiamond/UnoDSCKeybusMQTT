@@ -339,7 +339,11 @@ void loop (void)
             messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, true);
           }
         }
-        else 
+        else if(dsc.exitDelay[partition])
+        {
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, true);
+        }
+        else
         {
           messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, true);
         }
@@ -509,7 +513,7 @@ void mqttCallback (char* topic, byte* payload, unsigned int length)
   }
 
   // Disarm
-  else if((MQTTSubPayloadDisarmSuffix == payload[payloadIndex]) && (dsc.armed[partition] || dsc.exitDelay[partition])) 
+  else if(MQTTSubPayloadDisarmSuffix == payload[payloadIndex]) 
   {
     while(false == dsc.writeReady) 
     {
