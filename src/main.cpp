@@ -513,7 +513,7 @@ void mqttCallback (char* topic, byte* payload, unsigned int length)
   }
 
   // Disarm
-  else if(MQTTSubPayloadDisarmSuffix == payload[payloadIndex]) 
+  else if(MQTTSubPayloadDisarmSuffix == payload[payloadIndex] && (dsc.exitDelay[partition] || (dsc.armed[partition] && dsc.exitDelay[partition]))) 
   {
     while(false == dsc.writeReady) 
     {
