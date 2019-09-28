@@ -29,31 +29,31 @@ bool dscKeybusInterface::processModuleData;
 byte dscKeybusInterface::panelData[dscReadSize];
 byte dscKeybusInterface::panelByteCount;
 byte dscKeybusInterface::panelBitCount;
-bool dscKeybusInterface::writeReady;
-byte dscKeybusInterface::moduleData[dscReadSize];
-bool dscKeybusInterface::moduleDataCaptured;
-byte dscKeybusInterface::moduleByteCount;
-byte dscKeybusInterface::moduleBitCount;
-bool dscKeybusInterface::writeAlarm;
-bool dscKeybusInterface::writeAsterisk;
-bool dscKeybusInterface::wroteAsterisk;
-bool dscKeybusInterface::bufferOverflow;
-byte dscKeybusInterface::panelBufferLength;
-byte dscKeybusInterface::panelBuffer[dscBufferSize][dscReadSize];
-byte dscKeybusInterface::panelBufferBitCount[dscBufferSize];
-byte dscKeybusInterface::panelBufferByteCount[dscBufferSize];
-byte dscKeybusInterface::isrPanelData[dscReadSize];
-byte dscKeybusInterface::isrPanelByteCount;
-byte dscKeybusInterface::isrPanelBitCount;
-byte dscKeybusInterface::isrPanelBitTotal;
-byte dscKeybusInterface::isrModuleData[dscReadSize];
-byte dscKeybusInterface::isrModuleByteCount;
-byte dscKeybusInterface::isrModuleBitCount;
-byte dscKeybusInterface::isrModuleBitTotal;
-byte dscKeybusInterface::currentCmd;
-byte dscKeybusInterface::statusCmd;
-unsigned long dscKeybusInterface::clockHighTime;
-unsigned long dscKeybusInterface::keybusTime;
+volatile bool dscKeybusInterface::writeReady;
+volatile byte dscKeybusInterface::moduleData[dscReadSize];
+volatile bool dscKeybusInterface::moduleDataCaptured;
+volatile byte dscKeybusInterface::moduleByteCount;
+volatile byte dscKeybusInterface::moduleBitCount;
+volatile bool dscKeybusInterface::writeAlarm;
+volatile bool dscKeybusInterface::writeAsterisk;
+volatile bool dscKeybusInterface::wroteAsterisk;
+volatile bool dscKeybusInterface::bufferOverflow;
+volatile byte dscKeybusInterface::panelBufferLength;
+volatile byte dscKeybusInterface::panelBuffer[dscBufferSize][dscReadSize];
+volatile byte dscKeybusInterface::panelBufferBitCount[dscBufferSize];
+volatile byte dscKeybusInterface::panelBufferByteCount[dscBufferSize];
+volatile byte dscKeybusInterface::isrPanelData[dscReadSize];
+volatile byte dscKeybusInterface::isrPanelByteCount;
+volatile byte dscKeybusInterface::isrPanelBitCount;
+volatile byte dscKeybusInterface::isrPanelBitTotal;
+volatile byte dscKeybusInterface::isrModuleData[dscReadSize];
+volatile byte dscKeybusInterface::isrModuleByteCount;
+volatile byte dscKeybusInterface::isrModuleBitCount;
+volatile byte dscKeybusInterface::isrModuleBitTotal;
+volatile byte dscKeybusInterface::currentCmd;
+volatile byte dscKeybusInterface::statusCmd;
+volatile unsigned long dscKeybusInterface::clockHighTime;
+volatile unsigned long dscKeybusInterface::keybusTime;
 
 
 dscKeybusInterface::dscKeybusInterface(byte setClockPin, byte setReadPin, byte setWritePin) {
@@ -387,7 +387,7 @@ void dscKeybusInterface::write(const char receivedKey) {
 }
 
 
-bool dscKeybusInterface::redundantPanelData(byte previousCmd[], byte currentCmd[], byte checkedBytes) {
+bool dscKeybusInterface::redundantPanelData(byte previousCmd[], volatile byte currentCmd[], byte checkedBytes) {
   bool redundantData = true;
   for (byte i = 0; i < checkedBytes; i++) {
     if (previousCmd[i] != currentCmd[i]) {
@@ -433,8 +433,7 @@ void ICACHE_RAM_ATTR dscKeybusInterface::dscClockInterrupt() {
 
   // esp8266 timer1 calls dscDataInterrupt() directly as set in begin()
   #elif defined(ESP8266)
-  // Timer duration = (clockCyclesPerMicrosecond() / 16) * microseconds
-  timer1_write((clockCyclesPerMicrosecond() / 16) * 250);
+  timer1_write(1250);
   #endif
 
 

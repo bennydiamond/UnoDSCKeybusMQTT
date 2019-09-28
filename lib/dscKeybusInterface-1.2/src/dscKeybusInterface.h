@@ -32,20 +32,18 @@ const byte dscBufferSize = 50;
 #endif
 
 
-
 class dscKeybusInterface {
 
   public:
     static const byte dscReadSize = 16;   // Maximum size of a Keybus command
     static const byte ZoneGroupSize = 8;  // Number of zones in a group
-
     // Initializes writes as disabled by default
     dscKeybusInterface(byte setClockPin, byte setReadPin, byte setWritePin = 255);
 
     void begin(Stream &_stream = Serial);             // Initializes the stream output to Serial by default
     bool handlePanel();                               // Returns true if valid panel data is available
     bool handleModule();                              // Returns true if valid keypad or module data is available
-    static bool writeReady;                  // True if the library is ready to write a key
+    static volatile bool writeReady;                  // True if the library is ready to write a key
     void write(const char receivedKey);               // Writes a single key
     void write(const char * receivedKeys);            // Writes multiple keys from a char array
     void printPanelBinary(bool printSpaces = true);   // Includes spaces between bytes by default
@@ -102,10 +100,10 @@ class dscKeybusInterface {
     //   00000101 0 10000001 00000001 10010001 11000111 [0x05] Status lights: Ready Backlight | Partition ready
     //            ^ Byte 1 (stop bit)
     static byte panelData[dscReadSize];
-    static byte moduleData[dscReadSize];
+    static volatile byte moduleData[dscReadSize];
 
     // True if dscBufferSize needs to be increased
-    static bool bufferOverflow;
+    static volatile bool bufferOverflow;
 
     // Timer interrupt function to capture data - declared as public for use by AVR Timer2
     static void dscDataInterrupt();
@@ -195,7 +193,7 @@ class dscKeybusInterface {
     bool validCRC();
     void writeKeys(const char * writeKeysArray);
     static void dscClockInterrupt();
-    static bool redundantPanelData(byte previousCmd[], byte currentCmd[], byte checkedBytes = dscReadSize);
+    static bool redundantPanelData(byte previousCmd[], volatile byte currentCmd[], byte checkedBytes = dscReadSize);
 
     Stream* stream;
     const char* writeKeysArray;
@@ -218,16 +216,16 @@ class dscKeybusInterface {
     static bool virtualKeypad;
     static char writeKey;
     static byte panelBitCount, panelByteCount;
-    static bool writeAlarm, writeAsterisk, wroteAsterisk;
-    static bool moduleDataCaptured;
-    static unsigned long clockHighTime, keybusTime;
-    static byte panelBufferLength;
-    static byte panelBuffer[dscBufferSize][dscReadSize];
-    static byte panelBufferBitCount[dscBufferSize], panelBufferByteCount[dscBufferSize];
-    static byte moduleBitCount, moduleByteCount;
-    static byte currentCmd, statusCmd;
-    static byte isrPanelData[dscReadSize], isrPanelBitTotal, isrPanelBitCount, isrPanelByteCount;
-    static byte isrModuleData[dscReadSize], isrModuleBitTotal, isrModuleBitCount, isrModuleByteCount;
+    static volatile bool writeAlarm, writeAsterisk, wroteAsterisk;
+    static volatile bool moduleDataCaptured;
+    static volatile unsigned long clockHighTime, keybusTime;
+    static volatile byte panelBufferLength;
+    static volatile byte panelBuffer[dscBufferSize][dscReadSize];
+    static volatile byte panelBufferBitCount[dscBufferSize], panelBufferByteCount[dscBufferSize];
+    static volatile byte moduleBitCount, moduleByteCount;
+    static volatile byte currentCmd, statusCmd;
+    static volatile byte isrPanelData[dscReadSize], isrPanelBitTotal, isrPanelBitCount, isrPanelByteCount;
+    static volatile byte isrModuleData[dscReadSize], isrModuleBitTotal, isrModuleBitCount, isrModuleByteCount;
 };
 
 #endif  // dscKeybusInterface_h
