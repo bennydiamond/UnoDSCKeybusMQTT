@@ -125,6 +125,8 @@
  *  Issues and (especially) pull requests are welcome:
  *  https://github.com/taligentx/dscKeybusInterface
  */
+#define MQTT_KEEPALIVE 60
+
 #include "secret.h"
 #include <UIPEthernet.h>
 #include <PubSubClient.h>
@@ -221,7 +223,7 @@ void setup (void)
 {
   Serial.begin(UARTBAUD);
 
-  Serial.print(F("DSC MQTT interface"));
+  Serial.print(F("DSC MQTT interface "));
   Serial.println(F(VERSION));
 
   // Initializes ethernet with DHCP
