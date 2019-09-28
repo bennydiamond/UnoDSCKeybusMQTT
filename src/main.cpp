@@ -130,6 +130,8 @@
 #include <PubSubClient.h>
 #include <dscKeybusInterface.h>
 
+#define VERSION "1.1"
+
 #define UARTBAUD                    (115200)
 
 // MQTT Properties
@@ -218,7 +220,9 @@ static byte periodicZoneBit;
 void setup (void) 
 {
   Serial.begin(UARTBAUD);
-  Serial.println();
+
+  Serial.print(F("DSC MQTT interface"));
+  Serial.println(F(VERSION));
 
   // Initializes ethernet with DHCP
   Serial.println(F("Init Ethernet."));
