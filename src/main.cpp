@@ -137,7 +137,7 @@
 #define UARTBAUD                    (115200)
 
 // MQTT Properties
-IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
+IPAddress const MQTTBrokerIP        (192, 168, 1, 1);
 #define MQTTBrokerPort              (1883)
 #define MQTTBrokerUser              SecretMQTTUsername // Username this device should connect with. Define string in secret.h
 #define MQTTBrokerPass              SecretMQTTPassword // Password this device should connect with. Define string in secret.h
