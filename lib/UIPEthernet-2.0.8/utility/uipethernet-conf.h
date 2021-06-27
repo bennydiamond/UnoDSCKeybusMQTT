@@ -6,7 +6,7 @@
 #define UIP_SOCKET_NUMPACKETS    5
 #endif
 #ifndef UIP_CONF_MAX_CONNECTIONS
-#define UIP_CONF_MAX_CONNECTIONS 2
+#define UIP_CONF_MAX_CONNECTIONS 1
 #endif
 
 /* for UDP
