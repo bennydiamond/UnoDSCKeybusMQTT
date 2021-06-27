@@ -167,7 +167,7 @@ IPAddress const MQTTBrokerIP        (192, 168, 1, 1);
 #define MQTTPubPayloadTroubleActive "1"
 #define MQTTPubPayloadTroubleIdle   "0"
 #define MQTTWillQos                 (0)
-#define MQTTWillRetain              (0)
+#define MQTTWillRetain              (1)
 #define MQTTAvailablePayload        "online"
 #define MQTTUnavailablePayload      "offline"
 #define MQTTNotRetain               (false)
@@ -563,21 +563,12 @@ void mqttHandle (void)
         Serial.println(F("MQTT connected."));
         mqtt.subscribe(MQTTSubscribeTopic); 
         dscPeriodicPublishTimer = PublishDscLoopPeriod_ms;
+        publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);
         mqttActionTimer = 0;
       }
     }
   }
   
-  if(mqtt.connected())  
-  {
-    if(0 == mqttActionTimer)
-    {
-      mqttActionTimer = PublishAvailableInterval_ms;
-
-      publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTNotRetain);  
-    }
-  }
-
   mqtt.loop();
 }
 
