@@ -173,16 +173,6 @@ IPAddress const MQTTBrokerIP        (192, 168, 1, 1);
 #define MQTTNotRetain               (false)
 #define MQTTRetain                  (true)
 #define ConnectBrokerRetryInterval_ms (2000)
-#define PublishAvailableInterval_ms   (30000)
-#define PublishDscLoopPeriod_ms       (7000)
-#define PublishDscTroubleOffset_ms    (PublishDscLoopPeriod_ms - 500)
-#define PublishDscArmedOffset_ms      (PublishDscLoopPeriod_ms - 1000)
-#define PublishDscAlarmOffset_ms      (PublishDscLoopPeriod_ms - 1500)
-#define PublishDscFireOffset_ms       (PublishDscLoopPeriod_ms - 2000)
-#define PublishDscZonesStartOffset_ms (PublishDscLoopPeriod_ms - 2500)
-#define PublishDscZoneInterval_ms     (25) // 64 zones would take 1600ms to publish
-#define PublishDscZoneLength_ms       (PublishDscZoneInterval_ms * dscZones * dscKeybusInterface::ZoneGroupSize)
-
 
 // Configures the Keybus interface with the specified pins - dscWritePin is optional, leaving it out disables the
 // virtual keypad.
@@ -199,6 +189,7 @@ IPAddress const ip(192, 168, 1, 190);
 IPAddress const gateway(192, 168, 0, 1);
 IPAddress const subnet(255,255,254,0);
 
+
 // Class definitions
 EthernetClient ethClient;
 PubSubClient mqtt(MQTTBrokerIP, MQTTBrokerPort, ethClient);
@@ -209,15 +200,10 @@ void mqttCallback (char* topic, byte* payload, unsigned int length);
 void mqttHandle (void);
 static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
 static void advanceTimers (void);
-static void refreshAlarmSysStatus (void);
 
 // Static variables
 static uint32_t mqttActionTimer;
-static uint32_t dscPeriodicPublishTimer;
 static unsigned long previous;
-static unsigned long lastZonePublishedTime;
-static byte periodicZoneGroup;
-static byte periodicZoneBit;
 
 void setup (void) 
 {
@@ -239,10 +225,7 @@ void setup (void)
   dsc.begin();
 
   mqttActionTimer = 0;
-  dscPeriodicPublishTimer = 0;
   previous = 0;
-  periodicZoneGroup = 0;
-  periodicZoneBit = 0;
   Serial.println(F("Setup Complete."));
 }
 
@@ -278,11 +261,11 @@ void loop (void)
 
       if(dsc.trouble) 
       {
-        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleActive, true);
+        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleActive, MQTTRetain);
       }
       else 
       {
-        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleIdle, true);
+        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleIdle, MQTTRetain);
       }
       
       if(messageSent)
@@ -308,11 +291,11 @@ void loop (void)
       
         if(dsc.exitDelay[partition]) 
         {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, true);  // Publish as a retained message
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);  // Publish as a retained message
         }
         else if((false == dsc.exitDelay[partition]) && (false == dsc.armed[partition])) 
         {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, true);
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
         }
 
         if(messageSent)
@@ -338,20 +321,20 @@ void loop (void)
         {
           if(dsc.armedAway[partition]) 
           {
-            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArm, true);
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArm, MQTTRetain);
           }
           else if(dsc.armedStay[partition]) 
           {
-            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, true);
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, MQTTRetain);
           }
         }
         else if(dsc.exitDelay[partition])
         {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, true);
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);
         }
         else
         {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, true);
+          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
         }
 
         if(messageSent)
@@ -376,7 +359,7 @@ void loop (void)
           partitionNumber[0] = partition + '1';
           strcat(publishTopic, partitionNumber);
 
-          publishMQTTMessage(publishTopic, MQTTPubPayloadAlarmTrigger, true);  // Alarm tripped
+          publishMQTTMessage(publishTopic, MQTTPubPayloadAlarmTrigger, MQTTRetain);  // Alarm tripped
         }
       }
 
@@ -395,11 +378,11 @@ void loop (void)
 
         if(dsc.fire[partition]) 
         {
-          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireTrigger, false);  // Fire alarm tripped
+          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireTrigger, MQTTNotRetain);  // Fire alarm tripped
         }
         else 
         {
-          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireIdle, false);  // Fire alarm restored
+          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireIdle, MQTTNotRetain);  // Fire alarm restored
         }
 
         if(messageSent)
@@ -443,11 +426,11 @@ void loop (void)
 
             if(bitRead(dsc.openZones[zoneGroup], zoneBit)) 
             {
-              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneTrigger, true); // Zone open
+              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneTrigger, MQTTRetain); // Zone open
             }
             else 
             {
-              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneIdle, true); // Zone closed
+              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneIdle, MQTTRetain); // Zone closed
             }
 
             if(messageSent)
@@ -562,7 +545,6 @@ void mqttHandle (void)
       {
         Serial.println(F("MQTT connected."));
         mqtt.subscribe(MQTTSubscribeTopic); 
-        dscPeriodicPublishTimer = PublishDscLoopPeriod_ms;
         publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);
         mqttActionTimer = 0;
       }
@@ -599,75 +581,5 @@ static void advanceTimers (void)
     {
       mqttActionTimer--;
     }
-
-    if(dscPeriodicPublishTimer)
-    {
-      dscPeriodicPublishTimer--;
-    }
-
-    refreshAlarmSysStatus();
-  }
-}
-
-static void refreshAlarmSysStatus (void)
-{
-  if(mqtt.connected()) 
-  {
-    if(PublishDscTroubleOffset_ms == dscPeriodicPublishTimer)
-    {
-      dsc.statusChanged = true;
-      dsc.troubleChanged = true;
-    }
-    else if(PublishDscArmedOffset_ms == dscPeriodicPublishTimer)
-    {
-      dsc.statusChanged = true;
-      for(byte partition = 0; partition < dscPartitions; partition++) 
-      {
-        dsc.armedChanged[partition] = true;
-      }
-    }
-    else if(PublishDscAlarmOffset_ms == dscPeriodicPublishTimer)
-    {
-      dsc.statusChanged = true;
-      for(byte partition = 0; partition < dscPartitions; partition++) 
-      {
-        dsc.alarmChanged[partition] = true;
-      }
-    }
-    else if(PublishDscFireOffset_ms == dscPeriodicPublishTimer)
-    {
-      dsc.statusChanged = true;
-      for(byte partition = 0; partition < dscPartitions; partition++) 
-      {
-        dsc.fireChanged[partition] = true;
-      }
-    }
-    else if((PublishDscZonesStartOffset_ms >= dscPeriodicPublishTimer) && 
-            ((PublishDscZonesStartOffset_ms - PublishDscZoneLength_ms) < dscPeriodicPublishTimer))
-    {
-      if(dscPeriodicPublishTimer <= (lastZonePublishedTime - PublishDscZoneInterval_ms))
-      {
-        dsc.statusChanged = true;
-        dsc.openZonesStatusChanged = true;
-        bitWrite(dsc.openZonesChanged[periodicZoneGroup], periodicZoneBit++, true);
-
-        if(dscKeybusInterface::ZoneGroupSize == periodicZoneBit)
-        {
-          periodicZoneBit = 0;
-          periodicZoneGroup = (periodicZoneGroup + 1) % dscZones;
-        }
-
-        lastZonePublishedTime = dscPeriodicPublishTimer;
-      }
-    }
-    else
-    {
-      if(0 == dscPeriodicPublishTimer)
-      {
-        lastZonePublishedTime = PublishDscLoopPeriod_ms;
-        dscPeriodicPublishTimer = PublishDscLoopPeriod_ms;
-      }
-    }
-    
   }
 }
