@@ -233,7 +233,7 @@ void setup (void)
 void loop (void) 
 {
   mqttHandle();
-  dsc.handlePanel();
+  dsc.loop();
 
   if(dsc.statusChanged)   // Processes data only when a valid Keybus command has been read
   {
@@ -403,7 +403,7 @@ void loop (void)
       dsc.openZonesStatusChanged = false;                           // Resets the open zones status flag
       for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
       {
-        for(byte zoneBit = 0; zoneBit < dscKeybusInterface::ZoneGroupSize; zoneBit++) 
+        for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
         {
           if(bitRead(dsc.openZonesChanged[zoneGroup], zoneBit))   // Checks an individual open zone status flag
           {
@@ -411,7 +411,7 @@ void loop (void)
             char zonePublishTopic[strlen(MQTTZoneTopic) + (2 * sizeof(char))];
             strcpy(zonePublishTopic, MQTTZoneTopic);
             char * zone = zonePublishTopic + strlen(zonePublishTopic);
-            byte const currentZone = zoneBit + 1 + (zoneGroup * dscKeybusInterface::ZoneGroupSize);
+            byte const currentZone = zoneBit + 1 + (zoneGroup * 8);
             // Works because a maximum of 64 zones is supported. 
             if(currentZone / 10)
             {
