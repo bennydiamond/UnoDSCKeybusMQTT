@@ -197,7 +197,7 @@ dscKeybusInterface dsc(dscClockPin, dscReadPin, dscWritePin);
 
 // Function prototypes
 void mqttCallback (char* topic, byte* payload, unsigned int length);
-void mqttHandle (void);
+boolean mqttHandle (void);
 static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
 static void advanceTimers (void);
 
@@ -232,125 +232,70 @@ void setup (void)
 
 void loop (void) 
 {
-  mqttHandle();
-  dsc.loop();
-
-  if(dsc.statusChanged)   // Processes data only when a valid Keybus command has been read
+  if(true == mqttHandle())
   {
-    dsc.statusChanged = false;                   // Reset the status tracking flag
+    dsc.loop();
 
-    // If the Keybus data buffer is exceeded, the sketch is too busy to process all Keybus commands.  Call
-    // handlePanel() more often, or increase dscBufferSize in the library: src/dscKeybusInterface.h
-    if(dsc.bufferOverflow) 
+    if(dsc.statusChanged)   // Processes data only when a valid Keybus command has been read
     {
-      Serial.println(F("Keybus buffer overflow"));
-    }
+      dsc.statusChanged = false;                   // Reset the status tracking flag
 
-    dsc.bufferOverflow = false;
-
-    // Sends the access code when needed by the panel for arming
-    if(dsc.accessCodePrompt && dsc.writeReady) 
-    {
-      dsc.accessCodePrompt = false;
-      dsc.write(accessCode);
-    }
-
-    if(dsc.troubleChanged) 
-    {
-      bool messageSent = false;
-
-      if(dsc.trouble) 
+      // If the Keybus data buffer is exceeded, the sketch is too busy to process all Keybus commands.  Call
+      // handlePanel() more often, or increase dscBufferSize in the library: src/dscKeybusInterface.h
+      if(dsc.bufferOverflow) 
       {
-        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleActive, MQTTRetain);
-      }
-      else 
-      {
-        messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleIdle, MQTTRetain);
-      }
-      
-      if(messageSent)
-      {
-        dsc.troubleChanged = false;  // Resets the trouble status flag
-      }
-    }
-    // Publishes status per partition
-    for(byte partition = 0; partition < dscPartitions; partition++) 
-    {
-      // Publishes exit delay status
-      if(dsc.exitDelayChanged[partition]) 
-      {
-        // Appends the mqttPartitionTopic with the partition number
-        char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
-        char partitionNumber[2];
-        strcpy(publishTopic, MQTTPartitionTopic);
-        partitionNumber[1] = 0;
-        partitionNumber[0] = partition + '1';
-        strcat(publishTopic, partitionNumber);
-
-        bool messageSent = false;
-      
-        if(dsc.exitDelay[partition]) 
-        {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);  // Publish as a retained message
-        }
-        else if((false == dsc.exitDelay[partition]) && (false == dsc.armed[partition])) 
-        {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
-        }
-
-        if(messageSent)
-        {
-          dsc.exitDelayChanged[partition] = false;  // Resets the exit delay status flag
-        }
+        Serial.println(F("Keybus buffer overflow"));
+        dsc.bufferOverflow = false;
       }
 
-      // Publishes armed/disarmed status
-      if(dsc.armedChanged[partition]) 
+      // Checks if the interface is connected to the Keybus
+      if (dsc.keybusChanged) 
       {
-        // Appends the mqttPartitionTopic with the partition number
-        char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
-        char partitionNumber[2];
-        strcpy(publishTopic, MQTTPartitionTopic);
-        partitionNumber[1] = 0;
-        partitionNumber[0] = partition + '1';
-        strcat(publishTopic, partitionNumber);
-
-        bool messageSent = false;
-
-        if(dsc.armed[partition]) 
+        if(mqtt.connected())
         {
-          if(dsc.armedAway[partition]) 
+          dsc.keybusChanged = false;  // Resets the Keybus data status flag
+          if (dsc.keybusConnected) 
           {
-            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArm, MQTTRetain);
+            publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);  
           }
-          else if(dsc.armedStay[partition]) 
+          else 
           {
-            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, MQTTRetain);
+            publishMQTTMessage(MQTTPubAvailable, MQTTUnavailablePayload, MQTTRetain);  
           }
         }
-        else if(dsc.exitDelay[partition])
-        {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);
-        }
-        else
-        {
-          messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
-        }
-
-        if(messageSent)
-        {
-          dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
-        }
       }
 
-      // Publishes alarm status
-      if(dsc.alarmChanged[partition]) 
+      // Sends the access code when needed by the panel for arming
+      if(dsc.accessCodePrompt && dsc.writeReady) 
       {
-        // TODO: Figure out what to do here to ensure MQTT message has been sent
-        dsc.alarmChanged[partition] = false;  // Resets the partition alarm status flag
-        if(dsc.alarm[partition]) 
-        {
+        dsc.accessCodePrompt = false;
+        dsc.write(accessCode);
+      }
 
+      if(dsc.troubleChanged) 
+      {
+        bool messageSent = false;
+
+        if(dsc.trouble) 
+        {
+          messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleActive, MQTTRetain);
+        }
+        else 
+        {
+          messageSent = publishMQTTMessage(MQTTTroubleTopic, MQTTPubPayloadTroubleIdle, MQTTRetain);
+        }
+        
+        if(messageSent)
+        {
+          dsc.troubleChanged = false;  // Resets the trouble status flag
+        }
+      }
+      // Publishes status per partition
+      for(byte partition = 0; partition < dscPartitions; partition++) 
+      {
+        // Publishes exit delay status
+        if(dsc.exitDelayChanged[partition]) 
+        {
           // Appends the mqttPartitionTopic with the partition number
           char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
           char partitionNumber[2];
@@ -359,83 +304,156 @@ void loop (void)
           partitionNumber[0] = partition + '1';
           strcat(publishTopic, partitionNumber);
 
-          publishMQTTMessage(publishTopic, MQTTPubPayloadAlarmTrigger, MQTTRetain);  // Alarm tripped
-        }
-      }
-
-      // Publishes fire alarm status
-      if(dsc.fireChanged[partition]) 
-      {
-        // Appends the mqttFireTopic with the partition number
-        char firePublishTopic[strlen(MQTTFireTopic) + sizeof(char)];
-        char partitionNumber[2];
-        strcpy(firePublishTopic, MQTTFireTopic);
-        partitionNumber[1] = 0;
-        partitionNumber[0] = partition + '1';
-        strcat(firePublishTopic, partitionNumber);
-
-        bool messageSent = false;
-
-        if(dsc.fire[partition]) 
-        {
-          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireTrigger, MQTTNotRetain);  // Fire alarm tripped
-        }
-        else 
-        {
-          messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireIdle, MQTTNotRetain);  // Fire alarm restored
-        }
-
-        if(messageSent)
-        {
-          dsc.fireChanged[partition] = false;  // Resets the fire status flag
-        }
-      }
-    }
-
-    // Publishes zones 1-64 status in a separate topic per zone
-    // Zone status is stored in the openZones[] and openZonesChanged[] arrays using 1 bit per zone, up to 64 zones:
-    //   openZones[0] and openZonesChanged[0]: Bit 0 = Zone 1 ... Bit 7 = Zone 8
-    //   openZones[1] and openZonesChanged[1]: Bit 0 = Zone 9 ... Bit 7 = Zone 16
-    //   ...
-    //   openZones[7] and openZonesChanged[7]: Bit 0 = Zone 57 ... Bit 7 = Zone 64
-    if(dsc.openZonesStatusChanged) 
-    {
-      dsc.openZonesStatusChanged = false;                           // Resets the open zones status flag
-      for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
-      {
-        for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
-        {
-          if(bitRead(dsc.openZonesChanged[zoneGroup], zoneBit))   // Checks an individual open zone status flag
+          bool messageSent = false;
+        
+          if(dsc.exitDelay[partition]) 
           {
-            // Appends the mqttZoneTopic with the zone number
-            char zonePublishTopic[strlen(MQTTZoneTopic) + (2 * sizeof(char))];
-            strcpy(zonePublishTopic, MQTTZoneTopic);
-            char * zone = zonePublishTopic + strlen(zonePublishTopic);
-            byte const currentZone = zoneBit + 1 + (zoneGroup * 8);
-            // Works because a maximum of 64 zones is supported. 
-            if(currentZone / 10)
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);  // Publish as a retained message
+          }
+          else if((false == dsc.exitDelay[partition]) && (false == dsc.armed[partition])) 
+          {
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
+          }
+
+          if(messageSent)
+          {
+            dsc.exitDelayChanged[partition] = false;  // Resets the exit delay status flag
+          }
+        }
+
+        // Publishes armed/disarmed status
+        if(dsc.armedChanged[partition]) 
+        {
+          // Appends the mqttPartitionTopic with the partition number
+          char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
+          char partitionNumber[2];
+          strcpy(publishTopic, MQTTPartitionTopic);
+          partitionNumber[1] = 0;
+          partitionNumber[0] = partition + '1';
+          strcat(publishTopic, partitionNumber);
+
+          bool messageSent = false;
+
+          if(dsc.armed[partition]) 
+          {
+            if(dsc.armedAway[partition]) 
             {
-              *zone++ = (currentZone / 10) + '0';
+              messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArm, MQTTRetain);
             }
-            *zone++ = (currentZone % 10) + '0';
-            *zone = '\0';
-
-            strcat(zonePublishTopic, zone);
-
-            bool messageSent = false;
-
-            if(bitRead(dsc.openZones[zoneGroup], zoneBit)) 
+            else if(dsc.armedStay[partition]) 
             {
-              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneTrigger, MQTTRetain); // Zone open
+              messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadArmStay, MQTTRetain);
             }
-            else 
-            {
-              messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneIdle, MQTTRetain); // Zone closed
-            }
+          }
+          else if(dsc.exitDelay[partition])
+          {
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadPending, MQTTRetain);
+          }
+          else
+          {
+            messageSent = publishMQTTMessage(publishTopic, MQTTPubPayloadDisarm, MQTTRetain);
+          }
 
-            if(messageSent)
+          if(messageSent)
+          {
+            dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
+          }
+        }
+
+        // Publishes alarm status
+        if(dsc.alarmChanged[partition]) 
+        {
+          // TODO: Figure out what to do here to ensure MQTT message has been sent
+          dsc.alarmChanged[partition] = false;  // Resets the partition alarm status flag
+          if(dsc.alarm[partition]) 
+          {
+
+            // Appends the mqttPartitionTopic with the partition number
+            char publishTopic[strlen(MQTTPartitionTopic) + sizeof(char)];
+            char partitionNumber[2];
+            strcpy(publishTopic, MQTTPartitionTopic);
+            partitionNumber[1] = 0;
+            partitionNumber[0] = partition + '1';
+            strcat(publishTopic, partitionNumber);
+
+            publishMQTTMessage(publishTopic, MQTTPubPayloadAlarmTrigger, MQTTRetain);  // Alarm tripped
+          }
+        }
+
+        // Publishes fire alarm status
+        if(dsc.fireChanged[partition]) 
+        {
+          // Appends the mqttFireTopic with the partition number
+          char firePublishTopic[strlen(MQTTFireTopic) + sizeof(char)];
+          char partitionNumber[2];
+          strcpy(firePublishTopic, MQTTFireTopic);
+          partitionNumber[1] = 0;
+          partitionNumber[0] = partition + '1';
+          strcat(firePublishTopic, partitionNumber);
+
+          bool messageSent = false;
+
+          if(dsc.fire[partition]) 
+          {
+            messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireTrigger, MQTTNotRetain);  // Fire alarm tripped
+          }
+          else 
+          {
+            messageSent = publishMQTTMessage(firePublishTopic, MQTTPubPayloadFireIdle, MQTTNotRetain);  // Fire alarm restored
+          }
+
+          if(messageSent)
+          {
+            dsc.fireChanged[partition] = false;  // Resets the fire status flag
+          }
+        }
+      }
+
+      // Publishes zones 1-64 status in a separate topic per zone
+      // Zone status is stored in the openZones[] and openZonesChanged[] arrays using 1 bit per zone, up to 64 zones:
+      //   openZones[0] and openZonesChanged[0]: Bit 0 = Zone 1 ... Bit 7 = Zone 8
+      //   openZones[1] and openZonesChanged[1]: Bit 0 = Zone 9 ... Bit 7 = Zone 16
+      //   ...
+      //   openZones[7] and openZonesChanged[7]: Bit 0 = Zone 57 ... Bit 7 = Zone 64
+      if(dsc.openZonesStatusChanged) 
+      {
+        dsc.openZonesStatusChanged = false;                           // Resets the open zones status flag
+        for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
+        {
+          for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
+          {
+            if(bitRead(dsc.openZonesChanged[zoneGroup], zoneBit))   // Checks an individual open zone status flag
             {
-              bitClear(dsc.openZonesChanged[zoneGroup], zoneBit);  // Resets the individual open zone status flag
+              // Appends the mqttZoneTopic with the zone number
+              char zonePublishTopic[strlen(MQTTZoneTopic) + (2 * sizeof(char))];
+              strcpy(zonePublishTopic, MQTTZoneTopic);
+              char * zone = zonePublishTopic + strlen(zonePublishTopic);
+              byte const currentZone = zoneBit + 1 + (zoneGroup * 8);
+              // Works because a maximum of 64 zones is supported. 
+              if(currentZone / 10)
+              {
+                *zone++ = (currentZone / 10) + '0';
+              }
+              *zone++ = (currentZone % 10) + '0';
+              *zone = '\0';
+
+              strcat(zonePublishTopic, zone);
+
+              bool messageSent = false;
+
+              if(bitRead(dsc.openZones[zoneGroup], zoneBit)) 
+              {
+                messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneTrigger, MQTTRetain); // Zone open
+              }
+              else 
+              {
+                messageSent = publishMQTTMessage(zonePublishTopic, MQTTPubPayloadZoneIdle, MQTTRetain); // Zone closed
+              }
+
+              if(messageSent)
+              {
+                bitClear(dsc.openZonesChanged[zoneGroup], zoneBit);  // Resets the individual open zone status flag
+              }
             }
           }
         }
@@ -527,7 +545,7 @@ void mqttCallback (char* topic, byte* payload, unsigned int length)
 }
 
 
-void mqttHandle (void) 
+boolean mqttHandle (void) 
 {
   // If not MQTT connected, try connecting
   if(false == mqtt.connected())  
@@ -545,13 +563,12 @@ void mqttHandle (void)
       {
         Serial.println(F("MQTT connected."));
         mqtt.subscribe(MQTTSubscribeTopic); 
-        publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);
         mqttActionTimer = 0;
       }
     }
   }
   
-  mqtt.loop();
+  return mqtt.loop();
 }
 
 // Publish MQTT data to MQTT broker
