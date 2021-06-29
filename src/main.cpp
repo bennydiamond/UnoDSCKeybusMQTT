@@ -276,6 +276,7 @@ boolean mqttHandle (void);
 static bool publishMQTTMessage (char const * const sMQTTSubscription, char const * const sMQTTData, bool retain);
 static void advanceTimers (void);
 static void appendPartition(const char* sourceTopic, byte sourceNumber, char* publishTopic);
+static void initialPublish (void);
 
 // Static variables
 static uint32_t mqttActionTimer;
@@ -333,38 +334,7 @@ void loop (void)
         {
           messageSent = publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);
 
-          dsc.troubleChanged = true;
-          for(byte partition = 0; partition < dscPartitions; partition++) 
-          {
-            // Skips processing if the partition is disabled or in installer programming
-            if (dsc.disabled[partition]) 
-            {
-              continue;
-            }
-
-            dsc.armedChanged[partition] = true;
-            dsc.exitDelayChanged[partition] = true;
-            dsc.alarmChanged[partition] = true;
-            dsc.fireChanged[partition] = true;
-          }
-
-          dsc.openZonesStatusChanged = true;
-          for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
-          {
-            for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
-            {
-              bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 1);
-            }
-          }
-
-          dsc.pgmOutputsStatusChanged = true;
-          for(byte pgmGroup = 0; pgmGroup < 2; pgmGroup++) 
-          {
-            for(byte pgmBit = 0; pgmBit < 8; pgmBit++) 
-            {
-              bitWrite(dsc.pgmOutputsChanged[pgmGroup], pgmBit, 1);
-            }
-          }
+          initialPublish();
         }
         else 
         {
@@ -788,4 +758,38 @@ static void appendPartition(const char* sourceTopic, byte sourceNumber, char* pu
   strcpy(publishTopic, sourceTopic);
   itoa(sourceNumber + 1, partitionNumber, 10);
   strcat(publishTopic, partitionNumber);
+}
+
+static void initialPublish (void)
+{
+  dsc.troubleChanged = true;
+  for(byte partition = 0; partition < dscPartitions; partition++) 
+  {
+    // Skips processing if the partition is disabled or in installer programming
+    if (dsc.disabled[partition]) 
+    {
+      continue;
+    }
+
+    dsc.armedChanged[partition] = true;
+    dsc.fireChanged[partition] = true;
+  }
+
+  dsc.openZonesStatusChanged = true;
+  for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
+  {
+    for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
+    {
+      bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 1);
+    }
+  }
+
+  dsc.pgmOutputsStatusChanged = true;
+  for(byte pgmGroup = 0; pgmGroup < 2; pgmGroup++) 
+  {
+    for(byte pgmBit = 0; pgmBit < 8; pgmBit++) 
+    {
+      bitWrite(dsc.pgmOutputsChanged[pgmGroup], pgmBit, 1);
+    }
+  }
 }
