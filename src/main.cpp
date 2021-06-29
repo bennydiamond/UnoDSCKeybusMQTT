@@ -331,7 +331,40 @@ void loop (void)
 
         if (dsc.keybusConnected) 
         {
-          messageSent = publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);  
+          messageSent = publishMQTTMessage(MQTTPubAvailable, MQTTAvailablePayload, MQTTRetain);
+
+          dsc.troubleChanged = true;
+          for(byte partition = 0; partition < dscPartitions; partition++) 
+          {
+            // Skips processing if the partition is disabled or in installer programming
+            if (dsc.disabled[partition]) 
+            {
+              continue;
+            }
+
+            dsc.armedChanged[partition] = true;
+            dsc.exitDelayChanged[partition] = true;
+            dsc.alarmChanged[partition] = true;
+            dsc.fireChanged[partition] = true;
+          }
+
+          dsc.openZonesStatusChanged = true;
+          for(byte zoneGroup = 0; zoneGroup < dscZones; zoneGroup++) 
+          {
+            for(byte zoneBit = 0; zoneBit < 8; zoneBit++) 
+            {
+              bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 1);
+            }
+          }
+
+          dsc.pgmOutputsStatusChanged = true;
+          for(byte pgmGroup = 0; pgmGroup < 2; pgmGroup++) 
+          {
+            for(byte pgmBit = 0; pgmBit < 8; pgmBit++) 
+            {
+              bitWrite(dsc.pgmOutputsChanged[pgmGroup], pgmBit, 1);
+            }
+          }
         }
         else 
         {
@@ -546,7 +579,7 @@ void loop (void)
 
               if(messageSent)
               {
-                bitClear(dsc.openZonesChanged[zoneGroup], zoneBit);  // Resets the individual open zone status flag
+                bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 0);  // Resets the individual open zone status flag
               }
             }
           }
@@ -594,7 +627,7 @@ void loop (void)
 
               if(messageSent)
               {
-                bitClear(dsc.pgmOutputsChanged[pgmGroup], pgmBit);  // Resets the individual PGM output status flag
+                bitWrite(dsc.pgmOutputsChanged[pgmGroup], pgmBit, 0);  // Resets the individual PGM output status flag
               }
             }
           }
