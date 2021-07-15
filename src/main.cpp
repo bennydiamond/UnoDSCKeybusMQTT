@@ -194,7 +194,6 @@ entity: alarm_control_panel.security_partition_1
  *
  *  This example code is in the public domain.
  */
-#define MQTT_KEEPALIVE 60
 
 #include "secret.h"
 #include <UIPEthernet.h>
