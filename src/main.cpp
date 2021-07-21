@@ -714,6 +714,7 @@ boolean mqttHandle (void)
         Serial.println(F("MQTT connected."));
         mqtt.subscribe(MQTTSubscribeTopic); 
         mqttActionTimer = 0;
+        dsc.keybusChanged = true;
       }
     }
   }
