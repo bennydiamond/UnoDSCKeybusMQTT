@@ -6,7 +6,7 @@
 #define UIP_SOCKET_NUMPACKETS    5
 #endif
 #ifndef UIP_CONF_MAX_CONNECTIONS
-#define UIP_CONF_MAX_CONNECTIONS 1
+#define UIP_CONF_MAX_CONNECTIONS 3
 #endif
 
 /* for UDP
@@ -21,11 +21,10 @@
 #define UIP_CONF_UDP_CONNS       0
 #endif
 
-/* timeout in ms for attempts to get a free memory block to write
- * before returning number of bytes sent so far
- * set to 0 to block until connection is closed by timeout */
-#ifndef UIP_WRITE_TIMEOUT
-#define UIP_WRITE_TIMEOUT        0
+/* number of attempts on write before returning number of bytes sent so far
+ * set to -1 to block until connection is closed by timeout */
+#ifndef UIP_ATTEMPTS_ON_WRITE
+#define UIP_ATTEMPTS_ON_WRITE    -1
 #endif
 
 /* timeout after which UIPClient::connect gives up. The timeout is specified in seconds.

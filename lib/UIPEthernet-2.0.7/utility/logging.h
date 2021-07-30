@@ -21,14 +21,16 @@
 #define	LOG_DEBUG_V2		9	/* debug-verbose-level (vv) messages */
 #define	LOG_DEBUG_V3		10	/* debug-verbose-level (vvv) messages */
 
-#define ACTLOGLEVEL     LOG_NONE
+#warning "You can configure LogObject and ACTLOGLEVEL in 'utility/logging.h'. More verbosity more memory usage."
+#define ACTLOGLEVEL     LOG_INFO
 //#define ACTLOGLEVEL LOG_WARNING
 //#define ACTLOGLEVEL LOG_INFO
 //#define ACTLOGLEVEL LOG_DEBUG_V2
 
 #if ACTLOGLEVEL>LOG_NONE 
    #if defined(ARDUINO)
-     #if defined(__STM32F1__) || defined(__STM32F3__) || (!defined(ARDUINO_ARCH_STM32) && defined(STM32F3)) || defined(__STM32F4__) || defined(ARDUINO_ARCH_SAM)
+     #include "HardwareSerial.h"
+     #if defined(__STM32F1__) || defined(__STM32F3__) || defined(STM32F3) || defined(__STM32F4__) || defined(ARDUINO_ARCH_SAM)
         #define LogObject Serial1
      #else
         #define LogObject Serial
