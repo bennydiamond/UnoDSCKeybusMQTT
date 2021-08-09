@@ -199,6 +199,7 @@ entity: alarm_control_panel.security_partition_1
 #include <UIPEthernet.h>
 #include <PubSubClient.h>
 #include <dscKeybusInterface.h>
+#include <avr/wdt.h>
 
 #define VERSION "1.1"
 
@@ -302,6 +303,7 @@ void setup (void)
 
   mqttActionTimer = 0;
   previous = 0;
+  wdt_enable(WDTO_4S);
   Serial.println(F("Setup Complete."));
 }
 
@@ -310,6 +312,7 @@ void loop (void)
 {
   if(true == mqttHandle()) // Only process if connected to MQTT broker
   {
+    wdt_reset();
     dsc.loop();
 
     if(dsc.statusChanged)   // Processes data only when a valid Keybus command has been read
