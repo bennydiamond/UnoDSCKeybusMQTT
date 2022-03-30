@@ -196,7 +196,7 @@ entity: alarm_control_panel.security_partition_1
  */
 
 #include "secret.h"
-#include <UIPEthernet.h>
+#include <EthernetENC.h>
 #include <PubSubClient.h>
 #include <dscKeybusInterface.h>
 
@@ -207,7 +207,7 @@ entity: alarm_control_panel.security_partition_1
 #define NULLTERM_LEN                (sizeof('\0'))
 
 // MQTT Properties
-IPAddress const MQTTBrokerIP        (192, 168, 1, 1);
+IPAddress const MQTTBrokerIP        (192, 168, 1, 254);
 #define MQTTBrokerPort              (1883)
 #define MQTTBrokerUser              SecretMQTTUsername // Username this device should connect with. Define string in secret.h
 #define MQTTBrokerPass              SecretMQTTPassword // Password this device should connect with. Define string in secret.h
