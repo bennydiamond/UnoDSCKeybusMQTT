@@ -8,7 +8,7 @@
 #define UIP_SOCKET_NUMPACKETS    3
 #endif
 #ifndef UIP_CONF_MAX_CONNECTIONS
-#define UIP_CONF_MAX_CONNECTIONS 1
+#define UIP_CONF_MAX_CONNECTIONS 2
 #endif
 
 /* for UDP
@@ -17,14 +17,14 @@
 #define UIP_CONF_UDP             0
 #endif
 #ifndef UIP_CONF_UDP_CONNS
-#define UIP_CONF_UDP_CONNS       0
+#define UIP_CONF_UDP_CONNS       2
 #endif
 
 /**
  * size of received UDP messages backlog. it must be at least 1
  */
 #ifndef UIP_UDP_BACKLOG
-#define UIP_UDP_BACKLOG       0
+#define UIP_UDP_BACKLOG       2
 #endif
 
 /* timeout in ms for attempts to get a free memory block to write

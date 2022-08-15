@@ -1,0 +1,26 @@
+; PlatformIO Project Configuration File
+;
+;   Build options: build flags, source filter
+;   Upload options: custom upload port, speed and extra flags
+;   Library options: dependencies, extra library storages
+;   Advanced options: extra scripting
+;
+; Please visit documentation for the other options and examples
+; https://docs.platformio.org/page/projectconf.html
+
+[env:UnoDSCKeybusInterfaceMQTT]
+platform = atmelavr
+board = nanoatmega328
+framework = arduino
+monitor_speed = 115200
+<<<<<<< HEAD
+upload_port = COM3
+=======
+upload_port = COM9
+>>>>>>> 10da08f656638d66de1fd9787f8b49056302cb67
+build_flags = 
+	-fno-strict-aliasing
+	-D MQTT_MAX_PACKET_SIZE=96
+	-D MQTT_KEEPALIVE=30
+lib_deps = 
+	pubsubclient
