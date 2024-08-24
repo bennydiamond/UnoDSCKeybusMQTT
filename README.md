@@ -1,5 +1,7 @@
 # UNO MQTT DSC Keybus interface #
 
+## This project is now archived. I moved home and no longer require this thing.
+
 Arduino sketch that interface DSC Alarm System keybus and through MQTT client.
 Based off [dscKeybusInterface](https://github.com/taligentx/dscKeybusInterface)'s HomeAssistant-MQTT example for Arduino.
 
